@@ -1,0 +1,10 @@
+cluster.name: javacafe-cluster
+node.name: javacafe-node1
+network.host: 0.0.0.0           # 어떤 ip든 접속이 가능하다.
+http.port: 9200                 # 엘라스틱서치 서버에 접근할 수 있는 http api 호출을 위한 포트 번호
+transport.tcp.port: 9300        # 엘라스틱서치 클라이언트가 접근할 수 있는 TCP 포트 번호
+node.master: true               # 마스터 노드 동작 여부. 마스터 노드와 데이터 노드의 역할을 함께 수행할 수 있드록 true 지정
+node.data: true                 # 데이터 노드 동작 여부. 마스터 노드와 데이터 노드의 역할을 함께 수행할 수 있드록 true 지정
+path.repo: ["/Users/byeongkwan/workspace/es/book_backup/search_example", "/Users/byeongkwan/workspace/es/book_backup/agg_example"] # 인덱스 백업 위한 스냅샷 경로 지정
+
+xpack.security.audit.enabled: true
