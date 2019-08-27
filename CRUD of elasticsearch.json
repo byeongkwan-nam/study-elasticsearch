@@ -1,0 +1,17 @@
+POST /firstindex/default
+{
+  "name": "Processing Events with Logstash",
+  "instructor" : {
+    "firstName" : "Byeongkwan",
+    "lastName" : "Nam"
+  }
+}
+
+PUT /firstindex/default/1
+{
+  "name": "Complete guide to Elasticsearch",
+  "instructor" : {
+    "firstName" : "Byeongkwan",
+    "lastName" : "Nam"
+  }
+}
