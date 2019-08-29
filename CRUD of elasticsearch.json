@@ -15,3 +15,17 @@ PUT /firstindex/default/1
     "lastName" : "Nam"
   }
 }
+
+// query update
+POST /product/default/1/_update
+{
+  "doc" : { "price":95, "tags":["Elasticsearch"] }
+}
+
+// script update
+POST /product/default/1/_update
+{
+  "script" : "ctx._source.price += 10"
+}
+
+// https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting.html
