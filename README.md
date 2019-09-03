@@ -232,5 +232,199 @@ Bk Nam이라는 강사가 가르치는 엘라스틱서치 기본 강의를 만�
 처음 보는 거라 낯설 수 있는데, 어렵게 생각하지 말고 다시 찬찬히 생각해봅시다. 잘 생각해보면 의도하는 바를 명확히 드러내는 명령문(query)임을 알 수 있습니다. 어순이 한국어와 조금 다르긴 한데, 약간의 억지(?)를 부려보면 ㅋㅋ "카테고리(category)가 정확히 책(book)과 일치(match)하는 녀석들을 삭제해라"와 비슷하지 않나요?
 
 
+# 5. Mapping
 
+Created: Sep 03, 2019 8:50 PM
+Updated: Sep 03, 2019 10:11 PM
 
+# Schema == Mapping
+
+RDBMS에서 데이터를 삽입하려면 반드시 사전에 테이블의 스키마를 정의해야 했습니다. 마찬가지로 ES의 index에 document, 문서를 삽입하려면 해당 문서가 어떻게 생겨먹었는지 먼저 정의해주어야 합니다. 이 과정을 Mapping이라고 부릅니다.
+
+여태까지 했던 것처럼 간단한 사용을 위해서는 사실 매핑을 정의하지 않아도 됩니다. 엘라스틱서치가 알아서 해주니까요. 하지만 조금 더 통제권을 가지고 제대로 갖고 놀기 위해서는 어떻게 매핑을 정의하고, 어떻게 사용해야 하는지 알 필요가 있습니다. 그런데 하나 궁금한 점이 생기네요. 어떻게 ES는 미리 매핑을 정의하지 않아도 문서를 삽입할 수 있도록 했을까요?
+
+# Dynamic Mapping
+
+미리 매핑을 명시적으로 정의할 수도 있지만, 여태까지 해왔던 것처럼 다짜고짜 데이터를 집어넣어도 ES는 찰떡처럼 알아듣고 적절한 자료형을 찾아줍니다. 이를 다이나믹 매핑이라고 부르는데요. 많이 쓰이는 특정 데이터 형태들 - date, boolean, text, keyword ... - 에 대해서는 ES가 자동으로 설정할 수 있게끔 만들어져 있을 뿐더러 이를 위해 우리가 해야할 일은 아무 것도 없습니다. 구체적인 내용에 대해서는 다음 기회에 알아보는 걸로 하고, 이번에는 다이나믹 매핑을 확인할 수 있는 쿼리를 실행해보도록 하겠습니다.
+
+    GET /test/default/1
+    {
+      "created" : "2019/09/03",
+      "isExist" : true,
+      "message" : "hi, elasticsearch"
+    }
+
+미리 아무런 매핑도 정의하지 않고 다짜고짜 위 쿼리를 실행해보았습니다. 결과는 아래와 같은데요.
+
+    #! Deprecation: the default number of shards will change from [5] to [1] in 7.0.0; if you wish to continue using the default of [5] shards, you must manage this on the create index request or with an index template
+    {
+      "_index": "test",
+      "_type": "default",
+      "_id": "1",
+      "_version": 1,
+      "result": "created",
+      "_shards": {
+        "total": 2,
+        "successful": 1,
+        "failed": 0
+      },
+      "_seq_no": 0,
+      "_primary_term": 1
+    }
+
+이 상태에서 매핑 정보를 찍어보도록 하겠습니다.
+
+    GET /test/default/_mapping
+
+그 결과는 아래와 같습니다. 놀랍게도 날짜, bool, 텍스트 정보임을 알아채고 알아서 매핑 정보를 만들어준 것을 확인할 수 있습니다.
+
+    {
+      "test": {
+        "mappings": {
+          "default": {
+            "properties": {
+              "created": {
+                "type": "date",
+                "format": "yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis"
+              },
+              "isExist": {
+                "type": "boolean"
+              },
+              "message": {
+                "type": "text",
+                "fields": {
+                  "keyword": {
+                    "type": "keyword",
+                    "ignore_above": 256
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+text 타입을 보시면 조금 특이한 걸 보실 수 있는데요. 바로 text 타입과 keyword 타입을 동시에 가지고 있다는 점입니다. keyword 타입은 aggregation과 같이 정확한 일치가 필요한 곳에 쓰이는 타입이고, text 타입은 full text search 에 쓰이는 타입인데 둘 다 가지고 있네요? 일반적으로 text 타입은 keyword 타입을 함께 가지고 있습니다. 그리고 여기서 하나 더 주목할 점은 복수 개의 타입을 가질 수 있다는 점입니다. message 필드가 text 와 keyword 타입을 동시에 가질 수 있는 것처럼요.
+
+# Meta fields
+
+매핑에는 10가지의 메타 필드가 있습니다. 말 그대로 메타 정보를 담은 필드인데 유용하게 사용할 수 있는 필드들입니다. 여기서는 자주 쓰이는 몇 가지 메타 필드를 다루어보겠습니다.
+
+1. _index : 문서가 속한 인덱스의 이름을 나타내는 필드입니다.
+2. _id : 문서의 아이디를 저장하는 필드입니다.
+3. _source : 처음 문서를 색인할 때 사용했던 JSON 입니다. 해당 JSON 오브젝트를 사용해서 색인을 진행하였는데, 이 오리지널 JSON은 색인되지 않았습니다. 따라서 원본 그대로 검색할 수는 없지만, 조회할 수는 있습니다.
+4. _field_names : non-null 값을 가진 모든 필드의 이름을 포함하고 있습니다.
+5. _routing : ES는 해시값을 이용해서 문서를 샤드에 배분하는데요. 이 과정에서 이용한 값을 저장하는 필드입니다.
+6. _version : 문서가 몇 번이나 업데이트 되었는지 (= 새로 삽입되었는지) 알 수 있는 지표입니다. 생성 시 1이 부여되고 업데이트가 일어날 때마다 1이 증가합니다. 예를 들어 버전이 3인 경우 두 번의 업데이트가 진행된 것입니다.
+7. _meta : ES가 간섭하지 않는 커스텀 필드입니다. 저장하길 원하는 정보를 자유롭게 저장할 수 있습니다.
+
+# Field data types
+
+ES를 배우면서 그렇게까지 재미있지는 않은(?) 내용인데요. 그럼에도 불구하고 확실히 알아야 하는 내용들이 분명히 있기 때문에, 중요한 내용들 위주로 살펴보도록 하겠습니다.
+
+필드 데이터 타입은 크게 아래 네 가지로 구분할 수 있습니다.
+
+1. Core data types
+2. Complex data types
+3. Geo data types
+4. Specialized data types
+
+순서대로 살펴보도록 하겠습니다.
+
+### Core data types
+
+이미 프로그래밍 언어를 배우면서 매우 친숙하게 접한 데이터 타입들이 여기에 있습니다. string, integer, dates, 이런 것들이죠.
+
+1. Text : 풀텍스트 검색을 위해 주로 쓰이는 데이터 타입입니다. 제품 설명, 블로그 포스트 등이 이에 해당할 텐데요. text 데이터 타입은 대체로 원문 그대로 저장되지 않고 약간의 수정을 거친 후에 저장됩니다. 그리고 타입 특성상 sorting 이나 aggregation 에는 잘 쓰이지 않고 있습니다. 이런 것에 쓰이는 데이터 타입은 바로 keyword 입니다.
+2. Keyword : 구조화된 데이터를 위해 주로 쓰입니다. 이메일이라든지, 카테고리, 태그와 같은 데이터들이요. 주로 필터링이나 aggregation을 위해 쓰입니다. text 데이터 타입과 달리 주어진 그대로 저장됩니다.
+3. Numeric : 숫자 데이터들입니다. byte, short, integer, long, float, double 등이 있습니다.
+4. Date : 날짜입니다. y, M, d로 적절히 나타내주기만 하면 대체로 자유롭게 사용 가능합니다.
+5. Boolean : true, false를 가진 필드입니다.
+6. Binary : base64로 인코딩된 string을 저장할 수 있습니다. 이미지 등에 쓰일 수 있겠지요?
+7. Range : 범위를 저장할 수 있는 필드입니다. gt(greater than), gte(greater than or equal), lt(less than), lte(less than or equal) 등을 사용해서 범위를 지정할 수 있습니다.
+
+### Complex data types
+
+Core data type이 아니지만 평소에 접할 수 있던 타입들이 주로 여기에 속합니다. 배열이라든지, 객체와 같은 것들이요.
+
+1. Object : JSON을 저장할 수 있습니다. nested 형태도 가능합니다. 다만 저장되는 형태가 조금 달라질 수 있는데, 예를 들면 다음과 같습니다.
+
+        -- index time
+        {
+        	"name" : {
+        		"firstName" : "Bk"
+        		"lastName" : "Nam"
+        	}
+        }
+        
+        -- stored
+        {
+        	"name.firstName" : "Bk",
+        	"name.lastName" : "Nam"
+        }
+        
+
+2. Array : 배열 안에 들어있는 모든 데이터의 타입이 같아야 하고, nested 형태는 flatten 되어 저장됩니다. 예를 들면 아래와 같습니다.
+
+        [ 1, [ 2, 3 ] ] => [ 1, 2, 3 ]
+        ["one", "two", "three"] (O)
+        ["one", 2, "three"]     (X)
+        
+        --
+        {
+            "persons" : [
+                { "name" : "Bk Nam", "age": 28},
+                { "name" : "HM Son", "age": 30}
+            ]
+        }
+        
+        =>
+        
+        {
+            "persons.name" : [ "Bk Nam", "HM Son" ],
+            "persons.age" : [ 28, 30 ]
+        }
+
+    이상한 점을 발견하셨나요? 우리는 JSON의 배열을 사용하지 못합니다. nested array는 ES가 모두 해체시켜버리기 때문입니다. 그러면 이러한 사항을 어떻게 해결할 수 있을까요?
+
+4. Nested : 이 데이터 타입을 사용할 때는, 각 object가 독립적으로, 숨겨진 문서로 색인됩니다.
+
+### Geo datay type
+
+- Geo-point data type
+
+말 그대로 경도, 위도를 이용해 지구에서 위치를 나타내기 위한 데이터 타입입니다. 위도(latitude)와 경도(longitude)를 짝으로 저장할 수 있으며 그 방법은 4가지가 있습니다.
+
+    {
+        "location": {
+            "lat": 33.5206608,
+            "lon": -86.8024900
+        }
+    }
+    
+    {
+        "location": "drm3btev3e86"
+    }
+    
+    {
+        "location": "33.5206608, -86.8024900"
+    }
+    
+    {
+        "location": [-86.8024900, 33.5206608]
+    }
+
+- Geo-shape data type
+
+필요할 경우 point, polygon, linestring, multipoint, multilinestring, multipolygon, geometrycollection, envelop, circle 등 추가로 다양한 형태의 데이터를 저장할 수 있습니다. 
+
+### Specialized data types
+
+IP 주소 등 특정한 데이터만 저장할 수 있도록 하는 데이터 타입입니다. 목록은 다음과 같습니다.
+
+- IP : IPv4, IPv6 형태 모두 저장 가능합니다.
+- Completion : 자동 완성 기능, 검색어 추천을 위한 데이터 타입입니다.
+- Attachment : PDF, PPT, RTF와 같은 다양한 문서 포맷을 위한 데이터 타입입니다. 적용하기 위해서는 플각 문서 양식에 맞는 플러그인이 필요합니다. 텍스트 추출을 위해 내장 플러그인인 Apache Tika를 사용할 수 있습니다.
+
+        sudo bin/elasticsearch-plugin install ingest-attachment
